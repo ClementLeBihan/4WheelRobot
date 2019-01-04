@@ -1,0 +1,15 @@
+<launch>
+  <node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="0.04 0 0.14 0 0 1 0 base_link laser_frame 100" />
+  <node name="magrobot_platform" pkg="magrobot_platform" type="magrobot_node" output="screen"/>
+  <node name="rplidar" pkg="rplidar_ros" type="rplidarNode" />
+
+  <include file="$(find magrobot_groundstation)/launch/hectormapping.launch" />
+  <include file="$(find hector_exploration_node)/launch/exploration_planner.launch" />
+  <node name="simple_exploration_controller" pkg="hector_exploration_controller" type="simple_exploration_controller" output="screen">
+    <rosparam param="tolerance_trans"> 0.3 </rosparam>
+    <rosparam param="tolerance_rot"> 0.3 </rosparam>
+    <rosparam param="k_trans"> 1 </rosparam>
+    <rosparam param="k_rot"> 1 </rosparam>
+    <rosparam param="min_vel_lin_"> 0.0 </rosparam>
+  </node>
+</launch>

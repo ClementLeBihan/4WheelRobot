@@ -1,0 +1,7 @@
+<launch>
+<node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="0.04 0 0.14 0 0 1 0 base_link laser_frame 100" />
+  <node name="magrobot_platform" pkg="magrobot_platform" type="magrobot_node" output="screen"/>
+  <node name="rplidar" pkg="rplidar_ros" type="rplidarNode"/>
+  <!--  <include file="$(find openni2_launch)/launch/openni2.launch" /> -->
+  <node name="cv_camera" pkg="cv_camera" type="cv_camera_node" />
+</launch>
