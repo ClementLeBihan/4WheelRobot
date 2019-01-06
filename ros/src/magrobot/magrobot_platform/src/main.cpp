@@ -9,6 +9,11 @@
 #include <sys/ioctl.h>			//Needed for I2C port
 #include <linux/i2c-dev.h>		//Needed for I2C port
 
+#define MAXRPM 250;
+#define WHEELRADIUS 0.06
+
+float velocityFactor = 60.0f/(2.0f*M_PI*WHEELRADIUS);
+
 int file_i2c;
 ros::Time last_msg;
 
@@ -17,8 +22,13 @@ template <typename T> std::string binary_repr(T value) {
        return std::bitset<sizeof(T)*8>(value).to_string();
     }
 
+// Velocities should be in m/s
 void setVelocity( float vRight, float vLeft)
 {
+	// Transform velocities from m/s to RPM
+	vRight *= velocityFactor;
+	vLeft *= velocityFactor;
+
 	float buffer[2];
 	buffer[0] = vRight;
 	buffer[1] = vLeft;
@@ -31,15 +41,16 @@ void JoyCallback(const geometry_msgs::Twist::ConstPtr& msg)
 {
     last_msg = ros::Time::now();
 
-    float vright = msg->linear.x + 0.14*msg->angular.z; //*copysignf(1,msg->linear.x);
-    float vleft = msg->linear.x - 0.14*msg->angular.z; //*copysignf(1,msg->linear.x);
+    // msg->linear.x should be in m/s and msg->angular.z in rad/s
+    float vright = msg->linear.x + 0.12*msg->angular.z;
+    float vleft = msg->linear.x - 0.12*msg->angular.z;
 
     setVelocity(vright, vleft);
 }
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "MagCar_wheels");
+    ros::init(argc, argv, "platform_node");
 
     ros::NodeHandle n;
 
@@ -67,8 +78,8 @@ int main(int argc, char **argv)
     while (ros::ok())
     {
 	ros::spinOnce();
-    	if((ros::Time::now() - last_msg).toSec() > 0.1)
-		setVelocity(0,0);
+    	if((ros::Time::now() - last_msg).toSec() > 0.5f)
+		setVelocity(0.0f,0.0f);
         r.sleep();
    }
   return 0;
