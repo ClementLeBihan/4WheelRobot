@@ -68,7 +68,7 @@ void setup() {
 
 void loop() {
   // Every 10 ms (100Hz)
-  if(millis() - lastMeasUpdate>10)
+  if(micros() - lastSpeedMesurement >= 10000)
   {    
     // Compute Right Encoder Speed
     double dPos = rightEnc.read()-lastPosRight;
@@ -86,10 +86,9 @@ void loop() {
     lastPosLeft = leftEnc.read();
     
     lastSpeedMesurement = micros();
-    lastMeasUpdate = millis();
   }  
   // If the PID has been updated
-  if((lastMeasUpdate >= lastTimerUpdate) && !stop)
+  if((lastSpeedMesurement > lastTimerUpdate) && !stop)
   {
     digitalWrite(DIR_A, PWM_A_cmd > 0);
     digitalWrite(DIR_B, PWM_B_cmd > 0);
@@ -97,7 +96,7 @@ void loop() {
     analogWrite(PMW_A, abs(PWM_A_cmd));
     analogWrite(PMW_B, abs(PWM_B_cmd));
 
-    lastTimerUpdate = millis();
+    lastTimerUpdate = micros();
   }
   // If the PID hasn't been updated for more than 500 ms (2Hz)
   if(millis()-lastCmdUpdate > 500)
