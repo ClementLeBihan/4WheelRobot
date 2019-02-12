@@ -18,8 +18,9 @@ int DIR_B = 13;
 double PWM_A_cmd, PWM_B_cmd;
 
 // Timers
-unsigned long timer;
 unsigned long lastTimerUpdate;
+unsigned long lastMeasUpdate;
+unsigned long lastCmdUpdate;
 
 // Speed Measurement and encoder Position
 long lastSpeedMesurement = 0;
@@ -42,7 +43,6 @@ void setup() {
  Serial.begin(9600);
  
  lastTimerUpdate = millis();
- timer = millis();
   
  // Initialize i2c as slave
  Wire.begin(SLAVE_ADDRESS);
@@ -59,48 +59,48 @@ void setup() {
   // Setup the PID
   rightPID.SetMode(AUTOMATIC);
   rightPID.SetSampleTime(10);
-  rightPID.SetOutputLimits(0,255);
+  rightPID.SetOutputLimits(-255,255);
   leftPID.SetMode(AUTOMATIC);
   leftPID.SetSampleTime(10);
-  leftPID.SetOutputLimits(0,255);
+  leftPID.SetOutputLimits(-255,255);
 
 }
 
 void loop() {
   // Every 10 ms (100Hz)
-  if(micros() - lastSpeedMesurement>10000)
+  if(millis() - lastMeasUpdate>10)
   {    
     // Compute Right Encoder Speed
     double dPos = rightEnc.read()-lastPosRight;
     double dT = (micros()-lastSpeedMesurement)*10e-6; //dT in seconds
-    speedRight = 0.4*abs(dPos/dT);
+    speedRight = 0.4*dPos/dT;
     rightPID.Compute();
 
     // Compute Left Encoder Speed
     dPos = leftEnc.read()-lastPosLeft;
     dT = (micros()-lastSpeedMesurement)*10e-6; //dT in seconds
-    speedLeft = 0.4*abs(dPos/dT);
+    speedLeft = 0.4*dPos/dT;
     leftPID.Compute();
 
     lastPosRight = rightEnc.read();
     lastPosLeft = leftEnc.read();
+    
     lastSpeedMesurement = micros();
-
-    timer = millis();
+    lastMeasUpdate = millis();
   }  
   // If the PID has been updated
-  if(timer != lastTimerUpdate && !stop)
+  if((lastMeasUpdate >= lastTimerUpdate) && !stop)
   {
-    digitalWrite(DIR_A, vright >  0);
-    digitalWrite(DIR_B, vleft > 0);
+    digitalWrite(DIR_A, PWM_A_cmd > 0);
+    digitalWrite(DIR_B, PWM_B_cmd > 0);
     
     analogWrite(PMW_A, abs(PWM_A_cmd));
     analogWrite(PMW_B, abs(PWM_B_cmd));
 
-    lastTimerUpdate = timer;
+    lastTimerUpdate = millis();
   }
-  // If the PID hasn't been updated for more than 100 ms (10Hz)
-  else if(millis()-lastTimerUpdate > 100)
+  // If the PID hasn't been updated for more than 500 ms (2Hz)
+  if(millis()-lastCmdUpdate > 500)
   {
     // Stop the motors
     stop = true;
@@ -108,8 +108,14 @@ void loop() {
     // Reset I2C communication
     Wire.begin(SLAVE_ADDRESS);
     Wire.onReceive(receiveData);
-    
-    timer = millis();
+
+    rightPID.SetOutputLimits(0.0, 1.0);
+    rightPID.SetOutputLimits(-1.0, 0.0);
+    rightPID.SetOutputLimits(-255,255);
+
+    leftPID.SetOutputLimits(0.0, 1.0);
+    leftPID.SetOutputLimits(-1.0, 0.0);
+    leftPID.SetOutputLimits(-255,255);
   }
   if(stop)
   {
@@ -124,39 +130,40 @@ void loop() {
 }
 
 // callback for received data from I2C
-void receiveData(int byteCount){
+void receiveData(int byteCount)
+{
+          // Copy data in tmp buffer
+          byte tmp[4];
+          
+          // Extract VRight from buffer
+          for(int i = 0; i < 4; i++)
+          {
+            tmp[i] = Wire.read();
+          }
+          speedRightTarget = *((float*)(tmp));
+  
+          // Extract VLeft from buffer
+          for(int i = 0; i < 4; i++)
+          {
+            tmp[i] = Wire.read();
+          }
+          speedLeftTarget = *((float*)(tmp));      
 
-        // Copy data in tmp buffer
-        byte tmp[4];
-
-        // Extract VRight from buffer
-        for(int i = 0; i < 4; i++)
-        {
-          tmp[i] = Wire.read();
-          vright = *((float*)(tmp));
-        }
-
-        // Extract VLeft from buffer
-        for(int i = 0; i < 4; i++)
-        {
-          tmp[i] = Wire.read();
-          vleft = *((float*)(tmp));
-        }
+          for(int i = 0; i < 4; i++)
+          {
+            tmp[i] = Wire.read();
+          }
+          bool CS = (*((float*)(tmp)) == speedRightTarget+speedLeftTarget);
         
-        // Speed in RPM
-        speedRightTarget = abs(vright);
-        speedLeftTarget = abs(vleft);
+          // Read the end of the message
+          while(Wire.available())
+            Wire.read(); 
 
-        // If Both Speed target are null, stop
-        stop = (speedRightTarget == 0 && speedLeftTarget == 0);
+         if(CS)
+         {
+            // If Both Speed target are null, stop
+            stop = (speedRightTarget == 0 && speedLeftTarget == 0);
 
-        // Read the end of the message
-        while(Wire.available())
-          Wire.read(); 
-
-        // Compute the new PID command
-        rightPID.Compute();
-        leftPID.Compute();
-
-        timer = millis();
+            lastCmdUpdate = millis();
+          }
 }
