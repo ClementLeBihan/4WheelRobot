@@ -32,7 +32,7 @@ double speedLeftTarget, speedRightTarget;
 float vright, vleft; // FROM -1 to 1
 
 // PID Parameters
-double consKp=1, consKi=5, consKd=0.025;
+double consKp=1, consKi=5, consKd=0.0;
 PID rightPID(&speedRight, &PWM_A_cmd, &speedRightTarget,consKp,consKi,consKd, DIRECT);
 PID leftPID(&speedLeft, &PWM_B_cmd, &speedLeftTarget,consKp,consKi,consKd, DIRECT);
 
@@ -40,7 +40,7 @@ bool stop = false;
 
 void setup() {
  // Setup Serial communication
- Serial.begin(9600);
+ //Serial.begin(9600);
  
  lastTimerUpdate = millis();
   
@@ -96,6 +96,12 @@ void loop() {
     analogWrite(PMW_A, abs(PWM_A_cmd));
     analogWrite(PMW_B, abs(PWM_B_cmd));
 
+   /* Serial.print(speedLeft);
+    Serial.print(" ");
+    Serial.print(speedLeftTarget);
+    Serial.print(" ");
+    Serial.println(PWM_B_cmd);*/
+  
     lastTimerUpdate = micros();
   }
   // If the PID hasn't been updated for more than 500 ms (2Hz)
@@ -139,21 +145,20 @@ void receiveData(int byteCount)
           {
             tmp[i] = Wire.read();
           }
-          speedRightTarget = *((float*)(tmp));
+          float tmpVitesse_R = *((float*)(tmp));
   
           // Extract VLeft from buffer
           for(int i = 0; i < 4; i++)
           {
             tmp[i] = Wire.read();
           }
-          speedLeftTarget = *((float*)(tmp));      
-
+          float tmpVitesse_L = *((float*)(tmp));
+          
           for(int i = 0; i < 4; i++)
           {
             tmp[i] = Wire.read();
           }
-          bool CS = (*((float*)(tmp)) == speedRightTarget+speedLeftTarget);
-        
+          bool CS = (*((float*)(tmp)) == tmpVitesse_R+tmpVitesse_L);
           // Read the end of the message
           while(Wire.available())
             Wire.read(); 
@@ -161,8 +166,13 @@ void receiveData(int byteCount)
          if(CS)
          {
             // If Both Speed target are null, stop
+            speedRightTarget = double(tmpVitesse_R);
+            speedLeftTarget = double(tmpVitesse_L);
             stop = (speedRightTarget == 0 && speedLeftTarget == 0);
-
             lastCmdUpdate = millis();
+          }
+          else
+          {
+            stop = true;
           }
 }
